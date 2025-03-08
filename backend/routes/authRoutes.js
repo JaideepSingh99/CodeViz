@@ -1,80 +1,36 @@
 const express = require('express');
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const User = require('../models/User');
+const passport = require('passport');
 
 const router = express.Router();
 
-// Register Route
-router.post('/register', async (req, res) => {
-    try {
-        const { name, email, password } = req.body;
+// Google OAuth Login
+router.get("/google", passport.authenticate("google", {scope: ["profile", "email"]}));
 
-        let user = await User.findOne({ email });
-        if (user) {
-            return res.status(400).json({ message: "User already exists" });
-        }
-
-        const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash(password, salt);
-
-        await User.create({ name, email, password: hashedPassword });
-
-        res.status(200).json({ message: "User Registered successfully" });
-    } catch (e) {
-        res.status(500).json({ message: "Server Error" });
+// Callback Route
+router.get(
+    "/google/callback",
+    passport.authenticate("google", {failureRedirect: "/"}),
+    (req, res) => {
+        res.redirect("/")
     }
-});
+);
 
-// Login Route
-router.post('/login', async (req, res) => {
-    try {
-        const { email, password } = req.body;
-
-        const user = await User.findOne({ email });
-        if (!user) {
-            return res.status(400).json({ message: "Invalid credentials" });
+// Logout
+router.get("/logout", (req, res) => {
+    req.logOut((err) => {
+        if (err) {
+            return next(err);
         }
-
-        const isMatch = await bcrypt.compare(password, user.password);
-        if (!isMatch) {
-            return res.status(400).json({ message: "Invalid credentials" });
-        }
-
-        const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: "7d" });
-
-        res.cookie("token", token, { httpOnly: true }).json({ message: "Login Successful" });
-    } catch (e) {
-        res.status(500).json({ message: "Server Error" });
-    }
-});
-
-// Logout Route
-router.post('/logout', async (req, res) => {
-    res.cookie("token", "", { httpOnly: true, expires: new Date(0) }).json({ message: "Logged out" });
+        res.redirect("/");
+    });
 });
 
 // Get Current User
-router.get('/me', async (req, res) => {
-    try {
-        const token = req.cookies.token;
-        if (!token) {
-            return res.status(401).json({ message: "Unauthorized" });
-        }
-
-        let decoded;
-        try {
-            decoded = jwt.verify(token, process.env.JWT_SECRET);
-        } catch (error) {
-            return res.status(401).json({ message: "Invalid token" });
-        }
-
-        const user = await User.findById(decoded.userId).select("-password");
-
-        res.json(user);
-    } catch (e) {
-        res.status(500).json({ message: "Server Error" });
+router.get("/me", (req, res) => {
+    if (!req.user) {
+        return res.status(401).json({message: "Unauthorized"});
     }
+    res.json(req.user);
 });
 
 module.exports = router;

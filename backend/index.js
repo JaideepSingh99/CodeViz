@@ -1,27 +1,43 @@
 const express = require('express');
-const cors = require('cors');
 const mongoose = require('mongoose');
-const cookieParser = require('cookie-parser')
-
+const passport = require('passport');
+const session = require('express-session');
+const MongoStore = require('connect-mongo');
 require('dotenv').config();
+require('./config/passport');
+
 const app = express();
-const port = 8000;
+const port = process.env.PORT || 5000;
 
+// Middleware
 app.use(express.json());
-app.use(cookieParser());
-app.use(cors({credentials: true, origin: "http://localhost:5173"}));
 
-mongoose.connect(process.env.MONGO_URI);
+// Session Middleware
+app.use(
+    session({
+        secret: process.env.SESSION_SECRET,
+        resave: false,
+        saveUninitialized: false,
+        store: MongoStore.create({mongoUrl: process.env.MONGO_URI}),
+        cookie: {secure: false}
+    })
+);
 
+// Passport Middleware
+app.use(passport.initialize());
+app.use(passport.session());
 
 // Routes
-app.use("/api/auth", require("./routes/authRoutes"));
+app.use('/auth', require('./routes/authRoutes'));
 
+// Connect to MongoDB
+mongoose.connect(process.env.MONGO_URI)
+.then(() => console.log(`MongoDB connected`))
+.catch((e) => console.error(e));
 
-app.get('/', (req, res) => {
-    res.json("Server is Runnig");
-})
+// Default Route
+app.get("/", (req, res) => {
+    res.json({message: "Server is running"});
+});
 
-app.listen(port, () => {
-    console.log(`Server is running at ${port} port.`);
-})
+app.listen(port, () => console.log(`Server running on port ${port}`));
