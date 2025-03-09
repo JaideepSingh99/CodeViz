@@ -1,0 +1,4 @@
+FROM node:18
+WORKDIR /app
+COPY ./temp/temp.js /app/temp.js
+CMD ["node", "/app/temp.js"]
